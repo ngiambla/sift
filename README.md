@@ -15,7 +15,7 @@ In progress.
 
 
 ## Author
-Nicholas Giamblanco (M.A.Sc.), Ishita Ray (M.Eng), Lino Carillo (M.Eng)
+Nicholas Giamblanco (M.A.Sc.), Ishita Ray (M.Eng)
 
 
 
