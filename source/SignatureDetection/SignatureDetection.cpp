@@ -3,15 +3,16 @@
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
-
 namespace {
 	struct SignatureDetection : public FunctionPass {
 		static char ID;
 		SignatureDetection() : FunctionPass(ID) {}
 
 		bool runOnFunction(Function &F) override {
-			errs() << "~ Identifying Signatures";
+			errs() << "#############################\n";
+			errs() << "~ Identifying Signatures\n";
 			errs().write_escaped(F.getName()) << '\n';
+			errs() << "#############################\n";
 			return false;
 		}
 	};
