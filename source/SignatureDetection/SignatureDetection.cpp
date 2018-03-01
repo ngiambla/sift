@@ -67,7 +67,7 @@ namespace {
 			} else {
 				errs() << "~ About to test: " << m.get()->getName() << "\n";
 			}
- 			// auto targetMachine = EngineBuilder().selectTarget();
+
 			try{
 
 				ExecutionEngine* ee = EngineBuilder(std::move(m.get())).setErrorStr(&err_str).create();
@@ -80,13 +80,21 @@ namespace {
 				}
 				
 				Function* func = ee->FindFunctionNamed(F.getName());
-				errs() << "-- function found.\n";
+				errs() << "~ About to execute: " << func->getName() <<"\n";
+				
+				ee->finalizeObject();
+				
+				std::vector<GenericValue> arguments(2);
+				arguments[0].IntVal = APInt(32, 11);
+				arguments[1].IntVal = APInt(32, 13);
 
+				auto ret = ee->runFunction(func, arguments);
+				errs() << "We got: " << ret.FloatVal<< "\n";
 
-				typedef void (*PFN)();
-				PFN pfn = reinterpret_cast<PFN>(ee->getPointerToFunction(func));
-				pfn();
-				delete ee;
+				// typedef void (*PFN)();
+				// PFN pfn = reinterpret_cast<PFN>(ee->getPointerToFunction(func));
+				// pfn();
+				// delete ee;
 			} catch(const std::exception& e) {
 				errs() << e.what();
 				return false;
