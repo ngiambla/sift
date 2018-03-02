@@ -69,7 +69,7 @@ namespace {
 
 				if(auto err = m.takeError()) {
 					errs() << "[!] Error Occured\n";
-					return 1; 
+					return false; 
 				}
 
 				try{
@@ -78,7 +78,7 @@ namespace {
 
 					if(!ee){
 						errs() << "[!] Failed to construct ExecutionEngine: " << err_str << "\n";
-						return 1;
+						return false;
 					}
 					
 					Function* func = ee->FindFunctionNamed(F.getName());
@@ -101,22 +101,46 @@ namespace {
 						errs() << " | $(" << *arg << ")\n";
 						auto *AI = dyn_cast<Value>(arg);
 						if(AI->getType()->isIntegerTy()) {
-							arguments[args++].IntVal=APInt(32, rand()%100 );
+							arguments[args++].IntVal=APInt(32, rand()%50 );
 						} else if (AI->getType()->isFloatTy()) {
-							arguments[args++].FloatVal=rand()%100+0.0;							
+							arguments[args++].FloatVal=rand()%50+0.0;							
 						}
 
 					}
 					errs() << " +-----------------------\n";
 					Type* rt = func->getReturnType();
 
+					if(rt->isEmptyTy() || rt->isVoidTy()) {
+						errs() << "--> Function Return is Empty.\n";
+						auto siftbuf = MemoryBuffer::getFile("SIFTUtils.bc");
+					
+						if(std::error_code ecs = siftbuf.getError()) {
+							errs() << "[!] ERR: " << ecs.message() << "\n";
+							return false;
+						}	
+
+						errs() << " ~  Beginning Bitcode parsing.\n";
+
+						auto siftm = parseBitcodeFile(*std::move(siftbuf.get()), context);
+
+
+						if(auto sifterr = siftm.takeError()) {
+							errs() << "[!] Error Occured\n";
+							return false; 
+						}
+					}
+
 					for(int i =0; i< 10; ++i) {
 						args=0;
 						auto ret = ee->runFunction(func, arguments);
 						if(rt->isIntegerTy()) {
 							errs() << "--> We got: " << ret.IntVal << "\n";
-						} else if(rt->isFloatTy()) {
+						} else if(rt->isFloatTy() || rt->isHalfTy()) {
 							errs() << "--> We got: " << ret.FloatVal << "\n";
+						} else if(rt->isDoubleTy()) {
+							errs() << "--> We got: " << ret.FloatVal << "\n";
+						} else if(rt->isStructTy()) {
+							errs() << "[!] Not Handling Structs.\n";
 						}
 
 						for(auto arg = func->arg_begin(); arg != func->arg_end(); ++arg) {
@@ -134,8 +158,13 @@ namespace {
 					errs() << e.what();
 					return false;
 				}
+				return true;
+
+			} else {
+
+				return false; 					// do not modify main
+
 			}
-			return false;
 		}
 	};
 }
