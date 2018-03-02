@@ -1,7 +1,10 @@
 #include <string>
 #include <memory>
 #include <map>
+#include <ctime>
 #include <unistd.h>
+#include <cstdlib>
+
 #define GetCurrentDir getcwd
 
 
@@ -20,99 +23,117 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 namespace {
 	struct SignatureDetection : public FunctionPass {
-		std::map<std::string, int> opCounter;
-		
-		static char ID;
+		std::vector<std::string> seen_functions; 				// So not to loop over.
+		static char ID; 										// ID of pass.
+
 		SignatureDetection() : FunctionPass(ID) {}
 
 		bool runOnFunction(Function &F) override {
 
-			std::string err_str; 						// 
+			std::string err_str; 
+			srand(time(NULL));
+			if(F.getName() != "main") {
 
-			errs() << "~ Identifying Signature for: "; 		// first identify function 
-			errs().write_escaped(F.getName()) << '\n'; 		//
+				errs() << " ~  Identifying Signature for: "; 		// first identify function 
+				errs().write_escaped(F.getName()) << '\n'; 		//
 
-			InitializeNativeTarget(); 						// initialize target
-    		InitializeNativeTargetAsmPrinter();
-			InitializeNativeTargetAsmParser();
+				InitializeNativeTarget(); 						// initialize target
+	    		InitializeNativeTargetAsmPrinter();
+				InitializeNativeTargetAsmParser();
+				
+				LLVMContext context;
+	  			
+	  			char buff[255];
+	  			GetCurrentDir( buff, FILENAME_MAX );
+	  			std::string current_working_dir(buff);
+				
+				errs() << " ~  Checking Directory: " << current_working_dir<< "\n";
+				
+				auto membuf = MemoryBuffer::getFile("test_me.bc");
 			
-			LLVMContext context; 							// 
-  			
-  			char buff[255];
-  			GetCurrentDir( buff, FILENAME_MAX );
-  			std::string current_working_dir(buff);
-			
-			errs() << "~ Checking Directory: " << current_working_dir<< "\n";
-			
-			auto membuf = MemoryBuffer::getFile("test_me.bc");
-		
-			if(std::error_code ec = membuf.getError()) {
-				errs() << " ERR: " << ec.message() << "\n";
-				return false;
-			}	
+				if(std::error_code ec = membuf.getError()) {
+					errs() << "[!] ERR: " << ec.message() << "\n";
+					return false;
+				}	
 
-			errs() << "~ Beginning Bitcode parsing.\n";
+				errs() << " ~  Beginning Bitcode parsing.\n";
 
-			auto m = parseBitcodeFile(*std::move(membuf.get()), context);
+				auto m = parseBitcodeFile(*std::move(membuf.get()), context);
 
 
-			if(auto err = m.takeError()) {
-				errs() << "Error Occured\n";
-				return 1;
-			} else {
-				errs() << "~ About to test: " << m.get()->getName() << "\n";
-			}
-
-			try{
-
-				ExecutionEngine* ee = EngineBuilder(std::move(m.get())).setErrorStr(&err_str).create();
-
-				if(!ee){
-					errs() << "Failed to construct ExecutionEngine: " << err_str << "\n";
-					return 1;
-				} else {
-					errs() << "~ ExecutionEngine constructed.\n";
+				if(auto err = m.takeError()) {
+					errs() << "[!] Error Occured\n";
+					return 1; 
 				}
-				
-				Function* func = ee->FindFunctionNamed(F.getName());
-				errs() << "~ About to execute: " << func->getName() <<"\n";
-				
-				ee->finalizeObject();
-				
-				std::vector<GenericValue> arguments(2);
-				arguments[0].IntVal = APInt(32, 11);
-				arguments[1].IntVal = APInt(32, 13);
 
-				auto ret = ee->runFunction(func, arguments);
-				errs() << "We got: " << ret.FloatVal<< "\n";
+				try{
 
-				// typedef void (*PFN)();
-				// PFN pfn = reinterpret_cast<PFN>(ee->getPointerToFunction(func));
-				// pfn();
-				// delete ee;
-			} catch(const std::exception& e) {
-				errs() << e.what();
-				return false;
-			}
+					ExecutionEngine* ee = EngineBuilder(std::move(m.get())).setErrorStr(&err_str).create();
 
-			for(Function::iterator bb = F.begin(), e = F.end(); bb != e; ++bb) {
-				BasicBlock &b = *bb;
-				for(BasicBlock::iterator i = b.begin(), e2 = b.end(); i != e2; ++i) {
-					if ( opCounter.find(i->getOpcodeName()) == opCounter.end() ) {
-						opCounter[i->getOpcodeName()] = 1; //New OpCode in the list
-					} else {
-						opCounter[i->getOpcodeName()] += 1; //Incrementing the old one
+					if(!ee){
+						errs() << "[!] Failed to construct ExecutionEngine: " << err_str << "\n";
+						return 1;
 					}
+					
+					Function* func = ee->FindFunctionNamed(F.getName());
+
+					
+					errs() << " ~  About to execute: " << func->getName() <<"\n";
+
+					ee->finalizeObject();
+					
+					errs() << " +-- Gathering Arguments.\n";
+
+					int args = 0;
+					for(auto arg = func->arg_begin(); arg != func->arg_end(); ++arg) {
+						++args;
+					}
+
+					std::vector<GenericValue> arguments(args);
+					args=0;
+					for(auto arg = func->arg_begin(); arg != func->arg_end(); ++arg) {
+						errs() << " | $(" << *arg << ")\n";
+						auto *AI = dyn_cast<Value>(arg);
+						if(AI->getType()->isIntegerTy()) {
+							arguments[args++].IntVal=APInt(32, rand()%100 );
+						} else if (AI->getType()->isFloatTy()) {
+							arguments[args++].FloatVal=rand()%100+0.0;							
+						}
+
+					}
+					errs() << " +-----------------------\n";
+					Type* rt = func->getReturnType();
+
+					for(int i =0; i< 10; ++i) {
+						args=0;
+						auto ret = ee->runFunction(func, arguments);
+						if(rt->isIntegerTy()) {
+							errs() << "--> We got: " << ret.IntVal << "\n";
+						} else if(rt->isFloatTy()) {
+							errs() << "--> We got: " << ret.FloatVal << "\n";
+						}
+
+						for(auto arg = func->arg_begin(); arg != func->arg_end(); ++arg) {
+							auto *AI = dyn_cast<Value>(arg);
+							if(AI->getType()->isIntegerTy()) {
+								arguments[args++].IntVal=rand()%50;
+							} else if (AI->getType()->isFloatTy()) {
+								arguments[args++].FloatVal=rand()%50+0.0;							
+							}
+						}
+
+					}					
+
+				} catch(const std::exception& e) {
+					errs() << e.what();
+					return false;
 				}
-			}
-			errs() << "~ Checking OP usages...";
-			for(auto const& key : opCounter) {
-				errs() << key.first << " : " << key.second << "\n";
 			}
 			return false;
 		}
@@ -120,4 +141,5 @@ namespace {
 }
 
 char SignatureDetection::ID = 0;
+
 static RegisterPass<SignatureDetection> X("signatureDetection", "Acquiring Signuature Detection", false, false);

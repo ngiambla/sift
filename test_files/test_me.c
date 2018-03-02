@@ -1,19 +1,33 @@
 #include<stdio.h>
 
 
-float pickle_me() {
+float foo(int a1, int a2) {
+ if(a1 <= 0) {
+ 	return a2*3.124;
+ } else {
+ 	return foo(a1-a2, a2);
+ }
+}
 
-	return 1234.00;
+
+float bar(int a1) {
+
+	return 123.00*a1;
 } 
 
-int main() {
-	int i 		= 0;
-	int count 	= 0;	
-	printf("~ Testing compilation with clang.\n");
-	for(i=0; i < count+100; ++i) {
-		count = -i;
-		printf("[%d]\n", i);
-		pickle_me();
+int square_n(int n) {
+	return n*n;
+}
+
+int binary_search(float node_val) {
+	if (node_val < 20) {
+		return 0;
+	} else {
+		return 1;
 	}
+}
+
+int main() {
+
 	return (1);
 }
