@@ -1,6 +1,11 @@
 #include<stdio.h>
 
 
+void wow(void) {
+	int a;
+	a=a+1;
+}
+
 float foo(int a1, int a2) {
  if(a1 <= 0) {
  	return a2*3.124;
