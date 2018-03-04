@@ -1,6 +1,5 @@
 #include<stdio.h>
 
-
 void wow(void) {
 	int a;
 	a=a+1;
