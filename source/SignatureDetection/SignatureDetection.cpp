@@ -21,9 +21,13 @@
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/LLVMContext.h"
 
@@ -81,7 +85,81 @@ namespace {
 
 				// Check if return val is empty, and profile inside of code.
 				if(rt->isEmptyTy() || rt->isVoidTy()) {
-					// Function *sift_function = m.get()->getFunction("test_loop");
+
+					// for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
+					// 	//for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie;) {	
+					// 		Instruction *i = bb->getFirstNonPHIOrDbg();
+					// 		if(i) {
+					// 			if(!isa<ReturnInst>(i) && !isa<CallInst>(i) && i != 0){
+					// 				// need to fix the loop ordering.
+									
+					// 				for(int j =0; j < 100; ++j) {
+					// 					Instruction *inst = &(*i);
+					// 					Instruction *curOp = dyn_cast<Instruction>(i);
+
+					// 					errs() << *inst << "\n";
+
+					// 					++i;
+
+					// 					if(!curOp) {
+					// 						errs() << "Skipping instruction...\n";
+					// 					}
+									
+
+					// 					Value* V = ConstantInt::get(Type::getInt8Ty(bb->getContext()), 0);
+					// 					BinaryOperator::Create(Instruction::Add, V, V, "nop", curOp);
+					// 				}
+
+					// 				break;
+
+					// 			// } else {
+					// 			// 	++i;
+					// 			// }
+					// 			}
+					// 		} else {
+					// 			errs() << "dafaq?";
+					// 		}
+					// 		break;
+					// }
+
+					// Function::iterator bb = F.end();
+					// --bb;
+					// BasicBlock::iterator bi = bb->end();
+					// --bi;
+
+					for(BasicBlock &sbb : F) {
+						for(Instruction &i : sbb){
+							errs() << "[i]" << i <<"\n";
+						}
+					}		
+
+  			// 		IRBuilder<> builder(context);
+					// builder.SetInsertPoint(&*bb);
+					
+					// // Constant* L = ConstantInt::get(Type::getInt32Ty(context), 41);
+					// // Constant* R = ConstantInt::get(Type::getInt32Ty(context), 41);
+
+					// // builder.Insert(L);  // just a no-op in standard builder impl
+					// // builder.Insert(R);  // just a no-op in standard builder impl
+
+					// // Value *il  = builder.CreateAdd(L, R, "addtmp");
+
+
+					// Value* V = ConstantInt::get(Type::getInt8Ty(context), 0);
+
+
+					// Value *il2 = builder.CreateAdd(V, V, "nop");
+
+					// errs() << ": " << *il2 <<"\n";
+
+					// errs() << "----------\n\n";
+
+					// for(BasicBlock &sbb : F) {
+					// 	for(Instruction &i : sbb){
+					// 		errs() << "[i]" << i <<"\n";
+					// 	}
+					// }										
+					// // Function *sift_function = m.get()->getFunction("test_loop");
 
 					// Function::iterator bb = F.end();
 					// --bb;
