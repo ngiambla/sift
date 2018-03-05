@@ -86,104 +86,40 @@ namespace {
 				// Check if return val is empty, and profile inside of code.
 				if(rt->isEmptyTy() || rt->isVoidTy()) {
 
-					// for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
-					// 	//for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie;) {	
-					// 		Instruction *i = bb->getFirstNonPHIOrDbg();
-					// 		if(i) {
-					// 			if(!isa<ReturnInst>(i) && !isa<CallInst>(i) && i != 0){
-					// 				// need to fix the loop ordering.
-									
-					// 				for(int j =0; j < 100; ++j) {
-					// 					Instruction *inst = &(*i);
-					// 					Instruction *curOp = dyn_cast<Instruction>(i);
+					for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
+						//for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie;) {	
+							Instruction *i = bb->getFirstNonPHIOrDbg();
+							if(i) {
+								if(!isa<ReturnInst>(i) && !isa<CallInst>(i) && i != 0){
+									// need to fix the loop ordering.
+									Instruction *inst = &(*i);
+									Instruction *curOp = dyn_cast<Instruction>(i);
 
-					// 					errs() << *inst << "\n";
+									errs() << *inst << "\n";
 
-					// 					++i;
-
-					// 					if(!curOp) {
-					// 						errs() << "Skipping instruction...\n";
-					// 					}
+									if(!curOp) {
+										errs() << "Skipping instruction...\n";
+									}
 									
 
-					// 					Value* V = ConstantInt::get(Type::getInt8Ty(bb->getContext()), 0);
-					// 					BinaryOperator::Create(Instruction::Add, V, V, "nop", curOp);
-					// 				}
+									for(int j =0; j < 100000; ++j) {
+										Value* V = ConstantInt::get(Type::getInt8Ty(bb->getContext()), 0);
+										BinaryOperator::Create(Instruction::Add, V, V, "nop", curOp);
+									}
 
-					// 				break;
-
-					// 			// } else {
-					// 			// 	++i;
-					// 			// }
-					// 			}
-					// 		} else {
-					// 			errs() << "dafaq?";
-					// 		}
-					// 		break;
-					// }
-
-					// Function::iterator bb = F.end();
-					// --bb;
-					// BasicBlock::iterator bi = bb->end();
-					// --bi;
+									break;
+								}
+							} else {
+								errs() << "dafaq?";
+							}
+							break;
+					}
 
 					for(BasicBlock &sbb : F) {
 						for(Instruction &i : sbb){
 							errs() << "[i]" << i <<"\n";
 						}
-					}		
-
-  			// 		IRBuilder<> builder(context);
-					// builder.SetInsertPoint(&*bb);
-					
-					// // Constant* L = ConstantInt::get(Type::getInt32Ty(context), 41);
-					// // Constant* R = ConstantInt::get(Type::getInt32Ty(context), 41);
-
-					// // builder.Insert(L);  // just a no-op in standard builder impl
-					// // builder.Insert(R);  // just a no-op in standard builder impl
-
-					// // Value *il  = builder.CreateAdd(L, R, "addtmp");
-
-
-					// Value* V = ConstantInt::get(Type::getInt8Ty(context), 0);
-
-
-					// Value *il2 = builder.CreateAdd(V, V, "nop");
-
-					// errs() << ": " << *il2 <<"\n";
-
-					// errs() << "----------\n\n";
-
-					// for(BasicBlock &sbb : F) {
-					// 	for(Instruction &i : sbb){
-					// 		errs() << "[i]" << i <<"\n";
-					// 	}
-					// }										
-					// // Function *sift_function = m.get()->getFunction("test_loop");
-
-					// Function::iterator bb = F.end();
-					// --bb;
-					// BasicBlock::iterator bi = bb->end();
-					// --bi;
-
-					// for(BasicBlock &sbb : *sift_function) {
-					// 	for(Instruction &i : sbb){
-					// 		if(!isa<ReturnInst>(i)){
-					// 			Instruction * func_inst = i.clone();
-					// 			errs() << "[i]" << i <<"\n";
-					// 			bb->getInstList().insert(bi, func_inst);
-					// 			vmap[&i] = func_inst;
-  			// 					RemapInstruction(func_inst, vmap, RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-					// 		} 
-					// 	}
-					// }
-					// errs() << "~~~~~~~ -- \n";
-
-					// for(BasicBlock &sbb : F) {
-					// 	for(Instruction &i : sbb){
-					// 		errs() << "[i]" << i <<"\n";
-					// 	}
-					// }
+					}
 				}
 
 				try{
