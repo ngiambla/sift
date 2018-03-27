@@ -93,6 +93,24 @@ namespace {
 							} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
 								errs() << "-- check this\n";
 							} else {
+								Module * m = F.getParent();
+
+								Function * printFun = m->getFunction("printf");
+								if(printFun == NULL) {
+									errs() << " ~ [!] printf missing.\n";
+								} else {
+									errs() << " ~ [#] printf avail.\n";
+									// Constant *Init = ConstantArray::get(" [!] Check this. \n");
+  							// 		// Create the global variable and record it in the module
+  							// 		// The GV will be renamed to a unique name if needed.
+  							// 		GlobalVariable *GV = new GlobalVariable(Init->getType(), true, GlobalValue::InternalLinkage, Init, "trstr");
+  							// 		m->getGlobalList().push_back(GV);
+  							// 		Constant *GEP=ConstantExpr::getGetElementPtr(GV, std::vector<Constant*>(2,Constant::getNullValue(Type::Float)));
+ 								// 	std::vector<Value*> printArgs;
+  							// 		printArgs.push_back(GEP);
+  							// 		CallInst::Create(printFun, printArgs, "trace", i->getNextNode());
+
+								}
 								errs() << *i << "\n";
 								Instruction *curOp = dyn_cast<Instruction>(i);
 								if(!curOp) {

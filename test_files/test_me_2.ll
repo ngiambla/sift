@@ -9,32 +9,32 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local void @wow() #0 {
 entry:
-  %canary = add i32 85, 42
+  %canary = add i32 41, 51
   %i = alloca i32, align 4
   store i32 0, i32* %i, align 4
-  %check_canary = add i32 85, 42
+  %check_canary = add i32 41, 51
   br label %while.cond
 
 while.cond:                                       ; preds = %while.body, %entry
-  %canary1 = add i32 71, 33
+  %canary1 = add i32 95, 43
   %0 = load i32, i32* %i, align 4
   %cmp = icmp slt i32 %0, 10
-  %check_canary2 = add i32 71, 33
+  %check_canary2 = add i32 95, 43
   br i1 %cmp, label %while.body, label %while.end
 
 while.body:                                       ; preds = %while.cond
-  %canary3 = add i32 80, 54
+  %canary3 = add i32 88, 32
   %call = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str, i32 0, i32 0))
   %1 = load i32, i32* %i, align 4
   %inc = add nsw i32 %1, 1
   %canary5 = xor i32 %inc, %canary3
   store i32 %inc, i32* %i, align 4
-  %check_canary4 = add i32 80, 54
+  %check_canary4 = add i32 88, 32
   br label %while.cond
 
 while.end:                                        ; preds = %while.cond
-  %canary6 = add i32 65, 38
-  %check_canary7 = add i32 65, 38
+  %canary6 = add i32 58, 13
+  %check_canary7 = add i32 58, 13
   ret void
 }
 
@@ -43,45 +43,45 @@ declare dso_local i32 @printf(i8*, ...) #1
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local i32 @square_n(i32 %n) #0 {
 entry:
-  %canary = add i32 85, 42
+  %canary = add i32 41, 51
   %n.addr = alloca i32, align 4
   store i32 %n, i32* %n.addr, align 4
   %0 = load i32, i32* %n.addr, align 4
   %1 = load i32, i32* %n.addr, align 4
   %mul = mul nsw i32 %0, %1
   %canary1 = xor i32 %mul, %canary
-  %check_canary = add i32 85, 42
+  %check_canary = add i32 41, 51
   ret i32 %mul
 }
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local i32 @binary_search(float %node_val) #0 {
 entry:
-  %canary = add i32 85, 42
+  %canary = add i32 41, 51
   %retval = alloca i32, align 4
   %node_val.addr = alloca float, align 4
   store float %node_val, float* %node_val.addr, align 4
   %0 = load float, float* %node_val.addr, align 4
   %cmp = fcmp olt float %0, 2.000000e+01
-  %check_canary = add i32 85, 42
+  %check_canary = add i32 41, 51
   br i1 %cmp, label %if.then, label %if.else
 
 if.then:                                          ; preds = %entry
-  %canary1 = add i32 71, 33
+  %canary1 = add i32 95, 43
   store i32 0, i32* %retval, align 4
-  %check_canary2 = add i32 71, 33
+  %check_canary2 = add i32 95, 43
   br label %return
 
 if.else:                                          ; preds = %entry
-  %canary3 = add i32 80, 54
+  %canary3 = add i32 88, 32
   store i32 1, i32* %retval, align 4
-  %check_canary4 = add i32 80, 54
+  %check_canary4 = add i32 88, 32
   br label %return
 
 return:                                           ; preds = %if.else, %if.then
-  %canary5 = add i32 65, 38
+  %canary5 = add i32 58, 13
   %1 = load i32, i32* %retval, align 4
-  %check_canary6 = add i32 65, 38
+  %check_canary6 = add i32 58, 13
   ret i32 %1
 }
 
