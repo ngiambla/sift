@@ -56,7 +56,7 @@ namespace {
 
 			if(F.getName() != "main" && F.getName() != "test_loop") { 	// Ignoring main function (as we are going to separately parse each function.)
 
-				errs() << " ~  Identifying Signature for: "; 			// first identify function 
+				errs() << " ~  Identifying Signature for:   "; 			// first identify function 
 				errs().write_escaped(F.getName()) << '\n'; 				// ...
 
 				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
