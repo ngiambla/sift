@@ -59,130 +59,58 @@ namespace {
 				errs() << " ~  Identifying Signature for: "; 			// first identify function 
 				errs().write_escaped(F.getName()) << '\n'; 				// ...
 
-				InitializeNativeTarget(); 								// initialize target
-	    		InitializeNativeTargetAsmPrinter();						// ...
-				InitializeNativeTargetAsmParser();						// ...
-				
-				LLVMContext context;
-				
-				auto membuf = MemoryBuffer::getFile("test_me.bc"); 		// Loading in  bitcode. (Inefficient, consider revising) 
-			
-				if(std::error_code ec = membuf.getError()) { 			// ensure bitcode exists.
-					errs() << "[!] ERR: " << ec.message() << "\n";
-					return false;
-				}	
+				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
+					errs() << " ~ --> Modifying Basic Block.\n";
+					int rand_num_1 = rand()%100;
+					int rand_num_2 = rand()%100;
 
-				errs() << " ~  Beginning Bitcode parsing.\n";
+					Instruction *is = bb->getFirstNonPHIOrDbg();
+					Instruction *curOpS = dyn_cast<Instruction>(is);
+					Value* V1 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
+					Value* V2 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
+					BinaryOperator::Create(Instruction::Add, V1, V2, "canary", curOpS);
 
-				auto m = parseBitcodeFile(*std::move(membuf.get()), context); 
-			
+					Instruction *ie = bb->getTerminator();
+					Instruction *curOpE = dyn_cast<Instruction>(ie);
+					Value* V3 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
+					Value* V4 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
+					BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);					
 
-				if(auto err = m.takeError()) {
-					errs() << "[!] Error Occured\n";
-					return false; 
-				}
-				Type* rt = F.getReturnType();
 
-				// Check if return val is empty, and profile inside of code.
-				if(rt->isEmptyTy() || rt->isVoidTy()) {
 
-					for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
-						Instruction *i = bb->getFirstNonPHIOrDbg();
-						if(i) {
-							if(!isa<ReturnInst>(i) && !isa<CallInst>(i) && i != 0){
-								// need to fix the loop ordering.
-								Instruction *inst = &(*i);
+					Instruction *ci;
+
+					for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
+						Instruction *i = &(*inst_b);
+
+						if( isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
+
+
+							if(strncmp((i->getName().str()).c_str(),"canary", 6) == 0){
+								errs() << i->getName() << "\n";
+								ci = dyn_cast<Instruction>(i);
+
+							} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
+								errs() << "-- check this\n";
+							} else {
+								errs() << *i << "\n";
 								Instruction *curOp = dyn_cast<Instruction>(i);
-
-								errs() << *inst << "\n";
-
 								if(!curOp) {
 									errs() << "Skipping instruction...\n";
 								}
-								
-
-								for(int j =0; j < 100000; ++j) {
-									Value* V = ConstantInt::get(Type::getInt8Ty(bb->getContext()), 0);
-									BinaryOperator::Create(Instruction::Add, V, V, "nop", curOp);
-								}
-
-								break;
+								BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());
 							}
-						} else {
-							errs() << "dafaq?";
-						}
-						break;
-					}
-
-					for(BasicBlock &sbb : F) {
-						for(Instruction &i : sbb){
-							errs() << "[i]" << i <<"\n";
 						}
 					}
 				}
 
-				try{
-
-					ExecutionEngine* ee = EngineBuilder(std::move(m.get())).setErrorStr(&err_str).create();
-
-					if(!ee){
-						errs() << "[!] Failed to construct ExecutionEngine: " << err_str << "\n";
-						return false;
+				for(BasicBlock &sbb : F) {
+					for(Instruction &i : sbb){
+						errs() << "[i]" << i <<"\n";
 					}
-					
-					Function* func = ee->FindFunctionNamed(F.getName());
-
-					
-					errs() << " ~  About to execute: " << func->getName() <<"\n";
-
-					ee->finalizeObject();
-					
-					errs() << " +-- Gathering Arguments.\n";
-					int args = 0;
-					for(auto arg = func->arg_begin(); arg != func->arg_end(); ++arg) {
-						errs() << " | $(" << *arg << ")\n";
-						++args;
-					}
-					if(args == 0) {
-						errs() << " | $(VOID)\n";		
-						emptyArgs = true;				
-					}
-					std::vector<GenericValue> arguments(args);
-					errs() << " +-----------------------\n";
-
-
-					for(int i =0; i< 10; ++i) {
-						args=0;
-						errs() << "[*]";
-						for(auto arg = func->arg_begin(); arg != func->arg_end(); ++arg) {
-							auto *AI = dyn_cast<Value>(arg);
-							if(AI->getType()->isIntegerTy()) {
-								arguments[args++].IntVal=APInt(32, rand()%50 );
-							} else if (AI->getType()->isFloatTy()) {
-								arguments[args++].FloatVal=rand()%50+0.0;							
-							}  else if (AI->getType()->isDoubleTy()) {
-								arguments[args++].DoubleVal=rand()%50+0.0;							
-							}
-						}
-						
-						auto ret = ee->runFunction(func, arguments);
-						if(rt->isIntegerTy()) {
-							errs() << "--> We got: " << ret.IntVal << "\n";
-						} else if(rt->isFloatTy() || rt->isHalfTy()) {
-							errs() << "--> We got: " << ret.FloatVal << "\n";														
-						} else if(rt->isDoubleTy()) {
-							errs() << "--> We got: " << ret.DoubleVal << "\n";
-						} else if(rt->isStructTy()) {
-							errs() << "[!] Not Handling Structs.\n";
-						}
-
-					}
-					errs() << "--- here.\n";					
-
-				} catch(const std::exception& e) {
-					errs() << e.what();
-					return false;
+					errs() << "\n";
 				}
+
 				return true;
 			} else {
 				return false; 					// do not modify main
