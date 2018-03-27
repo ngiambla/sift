@@ -87,32 +87,31 @@ namespace {
 				if(rt->isEmptyTy() || rt->isVoidTy()) {
 
 					for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
-						//for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie;) {	
-							Instruction *i = bb->getFirstNonPHIOrDbg();
-							if(i) {
-								if(!isa<ReturnInst>(i) && !isa<CallInst>(i) && i != 0){
-									// need to fix the loop ordering.
-									Instruction *inst = &(*i);
-									Instruction *curOp = dyn_cast<Instruction>(i);
+						Instruction *i = bb->getFirstNonPHIOrDbg();
+						if(i) {
+							if(!isa<ReturnInst>(i) && !isa<CallInst>(i) && i != 0){
+								// need to fix the loop ordering.
+								Instruction *inst = &(*i);
+								Instruction *curOp = dyn_cast<Instruction>(i);
 
-									errs() << *inst << "\n";
+								errs() << *inst << "\n";
 
-									if(!curOp) {
-										errs() << "Skipping instruction...\n";
-									}
-									
-
-									for(int j =0; j < 100000; ++j) {
-										Value* V = ConstantInt::get(Type::getInt8Ty(bb->getContext()), 0);
-										BinaryOperator::Create(Instruction::Add, V, V, "nop", curOp);
-									}
-
-									break;
+								if(!curOp) {
+									errs() << "Skipping instruction...\n";
 								}
-							} else {
-								errs() << "dafaq?";
+								
+
+								for(int j =0; j < 100000; ++j) {
+									Value* V = ConstantInt::get(Type::getInt8Ty(bb->getContext()), 0);
+									BinaryOperator::Create(Instruction::Add, V, V, "nop", curOp);
+								}
+
+								break;
 							}
-							break;
+						} else {
+							errs() << "dafaq?";
+						}
+						break;
 					}
 
 					for(BasicBlock &sbb : F) {
