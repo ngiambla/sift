@@ -159,7 +159,7 @@ namespace {
 										errs() << "Skipping instruction...\n";
 									}
 									if(i->getType()->isFloatTy() || i->getType()->isDoubleTy()) {
-										CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "conv", curOp->getNextNode());
+										CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "cnry.conv", curOp->getNextNode());
 										canary_deps.push_back(float_conv);								
 										BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
 									} else {
@@ -186,27 +186,11 @@ namespace {
 
 						if(isa<ReturnInst>(inst_e)) {
 
-							// std::vector<Type *> arg_type;
-							// std::vector<Value *> args;
-							// arg_type.push_back(Type::getInt32Ty(m->getContext()));
-							// Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
-							// IRBuilder<> Builder(tci->getNextNode());
-
-							// Builder.CreateCall(fun, args);
-							bb_p = &(*bb);
-
-							llvm_printf("Output: %d\n", ConstantInt::get(Type::getInt32Ty(bb->getContext()), 5));
-
-
+							Instruction * old_inst = dyn_cast<Instruction>(&(*inst_e));
 							errs() << "Return " << *inst_e << "\n";
 
-						} else if(isa<BranchInst>(inst_e)) {	
+							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, 0);
 
-							errs() << "Branch: "<< *inst_e << "\n";
-
-	  						BranchInst * old_branch = dyn_cast<BranchInst>(&(*inst_e));
-
-							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, &(*--be));
 	  						IRBuilder<> killBuilder(F.getParent()->getContext());
 	  						killBuilder.SetInsertPoint(killBB);	
 							std::vector<Type *> arg_type;
@@ -215,17 +199,51 @@ namespace {
 							Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
 							killBuilder.CreateCall(fun, args);
 							killBuilder.CreateUnreachable();
-							++be;
 							bb_p = killBB;
-							llvm_printf("[ERR]\n");	
+							llvm_printf("[ERR] - RET\n");	
 
 
-							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, &(*--be));
+							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, 0);
 	  						IRBuilder<> bypassBuilder(F.getParent()->getContext());
 	  						bypassBuilder.SetInsertPoint(bypassBB);
 	  						Value * v = ConstantInt::get(Type::getInt32Ty(bb->getContext()), 0);
 	  						bypassBuilder.CreateAdd(v, v, "nop");
-							++be;
+
+							ValueToValueMapTy vmap;
+							auto *new_inst = old_inst->clone();
+							bypassBuilder.Insert(new_inst);
+							vmap[old_inst] = new_inst;
+							RemapInstruction(new_inst, vmap, RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+
+	  						BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
+	  						bb->getTerminator()->eraseFromParent();
+							bb_p = bypassBB;
+							llvm_printf("[PASS] ~ RET? OK.\n");	  
+
+						} else if(isa<BranchInst>(inst_e)) {	
+
+							errs() << "Branch: "<< *inst_e << "\n";
+
+	  						BranchInst * old_branch = dyn_cast<BranchInst>(&(*inst_e));
+
+							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, 0);
+	  						IRBuilder<> killBuilder(F.getParent()->getContext());
+	  						killBuilder.SetInsertPoint(killBB);	
+							std::vector<Type *> arg_type;
+							std::vector<Value *> args;
+							arg_type.push_back(Type::getInt32Ty(m->getContext()));
+							Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
+							killBuilder.CreateCall(fun, args);
+							killBuilder.CreateUnreachable();
+							bb_p = killBB;
+							llvm_printf("[ERR] - BR\n");	
+
+
+							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, 0);
+	  						IRBuilder<> bypassBuilder(F.getParent()->getContext());
+	  						bypassBuilder.SetInsertPoint(bypassBB);
+	  						Value * v = ConstantInt::get(Type::getInt32Ty(bb->getContext()), 0);
+	  						bypassBuilder.CreateAdd(v, v, "nop");
 
 							ValueToValueMapTy vmap;
 							auto *new_inst = old_branch->clone();
@@ -236,7 +254,7 @@ namespace {
 	  						BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
 	  						bb->getTerminator()->eraseFromParent();
 							bb_p = bypassBB;
-							llvm_printf("[PASS] ~ OK.\n");	  						
+							llvm_printf("[PASS] ~ BR? OK.\n");	  						
 	  						
 						}
 

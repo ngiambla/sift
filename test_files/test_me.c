@@ -35,6 +35,10 @@ float bar(int a1) {
 	return 123.00*a1;
 }
 
+double doubleDown() {
+	return 12121.001;
+}
+
 int square_n(int n) {
 	return n*n;
 }
