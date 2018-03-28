@@ -50,6 +50,8 @@ namespace {
 		static char ID; 												// ID of pass.
 		Module * mod_p; 
 		BasicBlock * bb_p; 
+		BasicBlock* killBB;
+
 		
 		SignatureDetection() : FunctionPass(ID) {}
 
@@ -68,7 +70,7 @@ namespace {
 		    }
 
 
-		    IRBuilder <> builder(mod_p->getContext());
+		    IRBuilder <> builder(bb_p->getContext());
 		    builder.SetInsertPoint(bb_p);
 
 		    Value *str = builder.CreateGlobalStringPtr(format);
@@ -94,149 +96,156 @@ namespace {
 
 		    va_end(ap);
 
-		    BasicBlock::iterator bip = bb_p->end();
-		    --bip;
+		    BasicBlock::iterator bip = bb_p->begin();
+		    // --bip;
+		    // errs() << *bip;
 
-
-		    CallInst * int32_call = CallInst::Create(func_printf, int32_call_params, "call", bip->getPrevNode());
+		    CallInst * int32_call = CallInst::Create(func_printf, int32_call_params, "call", &(*bip));
 		}
 
 		bool runOnFunction(Function &F) override {
 
-			bool check_performed = false; 								//
-
 			srand(time(NULL));
+			bool kill_generated=false;
 
-			if(F.getName() != "main" && F.getName() != "test_loop") { 	// Ignoring main function (as we are going to separately parse each function.)
+			if(F.getName() != "main") { 								// Ignoring main function (as we are going to separately parse each function.)
 
 				errs() << " ~  Identifying Signature for:   "; 			// first identify function 
 				errs().write_escaped(F.getName()) << '\n'; 				// ...
 
 				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
 
-					if(strncmp((bb->getName().str()).c_str(),"term.bypass", 11) == 0) {
-						bb++;
-					} else if(strncmp((bb->getName().str()).c_str(),"term.kill", 9) == 0) {
-						bb++;
-					}
-
-					std::vector<Instruction *> canary_deps;						//canary dependencies 			
-
-					errs() << " ~ --> Modifying Basic Block.\n";
-
-					int rand_num_1 = rand()%1000;
-					int rand_num_2 = rand()%1000;
-
-					Instruction *is = bb->getFirstNonPHIOrDbg();
-					Instruction *curOpS = dyn_cast<Instruction>(is);
-					Value* V1 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
-					Value* V2 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
-					BinaryOperator::Create(Instruction::Add, V1, V2, "canary", curOpS);
-
-					Instruction *ie = (bb)->getTerminator();
-					Instruction *curOpE = dyn_cast<Instruction>(ie);
-					Value* V3 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
-					Value* V4 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
-					BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);	
-					
+					if(strncmp((bb->getName().str()).c_str(),"term.bypass", 11) != 0 && strncmp((bb->getName().str()).c_str(),"term.kill", 9) != 0) {
 				
+						std::vector<Instruction *> canary_deps;						//canary dependencies 			
 
-					Instruction *ci; 		// canary instruction
-					Instruction *tci;		// terminating canary instruction
+						errs() << " ~ --> Modifying Basic Block.\n";
 
-					for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
-						Instruction *i = &(*inst_b);
+						int rand_num_1 = rand()%1000;
+						int rand_num_2 = rand()%1000;
 
-						if( isa<LoadInst>(i) || isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
+						Instruction *is = bb->getFirstNonPHIOrDbg();
+						Instruction *curOpS = dyn_cast<Instruction>(is);
+						Value* V1 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
+						Value* V2 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
+						BinaryOperator::Create(Instruction::Add, V1, V2, "canary", curOpS);
+
+						Instruction *ie = (bb)->getTerminator();
+						Instruction *curOpE = dyn_cast<Instruction>(ie);
+						Value* V3 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
+						Value* V4 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
+						BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);	
+						
+					
+
+						Instruction *ci; 		// canary instruction
+						Instruction *tci;		// terminating canary instruction
+
+						for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
+							Instruction *i = &(*inst_b);
+
+							if( isa<LoadInst>(i) || isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
 
 
-							if(strncmp((i->getName().str()).c_str(),"canary", 6) == 0){
-								errs() << i->getName() << "\n";
-								ci = dyn_cast<Instruction>(i);
+								if(strncmp((i->getName().str()).c_str(),"canary", 6) == 0){
+									errs() << i->getName() << "\n";
+									ci = dyn_cast<Instruction>(i);
 
-							} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
-								tci = dyn_cast<Instruction>(i);
-							} else {
-								Instruction *curOp = dyn_cast<Instruction>(i);
-								if(!curOp) {
-									errs() << "Skipping instruction...\n";
-								}
-								if(i->getType()->isFloatTy() || i->getType()->isDoubleTy()) {
-									CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "conv", curOp->getNextNode());
-									canary_deps.push_back(float_conv);								
-									BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
+								} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
+									tci = dyn_cast<Instruction>(i);
 								} else {
-									canary_deps.push_back(i);								
-									BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());									
+									Instruction *curOp = dyn_cast<Instruction>(i);
+									if(!curOp) {
+										errs() << "Skipping instruction...\n";
+									}
+									if(i->getType()->isFloatTy() || i->getType()->isDoubleTy()) {
+										CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "conv", curOp->getNextNode());
+										canary_deps.push_back(float_conv);								
+										BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
+									} else {
+										canary_deps.push_back(i);								
+										BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());									
+									}
 								}
 							}
 						}
-					}
 
-					for(Instruction * i : canary_deps) {
-						BinaryOperator::Create(Instruction::Xor, i, ci, "canary", tci);
-						ci = tci->getPrevNode();
-					}
-					CmpInst * compare = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, ci, tci, "res", tci->getNextNode());
-					Module * m = F.getParent();
-
-					errs() << " ~ About to Generate Exit.\n";
-					BasicBlock::iterator inst_e = bb->end();
-					--inst_e;
-					
-					
-
-					if(isa<ReturnInst>(inst_e)) {
-
-						// std::vector<Type *> arg_type;
-						// std::vector<Value *> args;
-						// arg_type.push_back(Type::getInt32Ty(m->getContext()));
-						// Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
-						// IRBuilder<> Builder(tci->getNextNode());
-
-						// Builder.CreateCall(fun, args);
+						for(Instruction * i : canary_deps) {
+							BinaryOperator::Create(Instruction::Xor, i, ci, "canary", tci);
+							ci = tci->getPrevNode();
+						}
+						CmpInst * compare = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, ci, tci, "res", tci->getNextNode());
+						Module * m = F.getParent();
 						mod_p = m;
-						bb_p = &(*bb);
 
-						llvm_printf("Output: %d\n", ConstantInt::get(Type::getInt32Ty(bb->getContext()), 5));
+						errs() << " ~ About to Generate Exit.\n";
+						BasicBlock::iterator inst_e = bb->end();
+						--inst_e;
+						
+						
+
+						if(isa<ReturnInst>(inst_e)) {
+
+							// std::vector<Type *> arg_type;
+							// std::vector<Value *> args;
+							// arg_type.push_back(Type::getInt32Ty(m->getContext()));
+							// Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
+							// IRBuilder<> Builder(tci->getNextNode());
+
+							// Builder.CreateCall(fun, args);
+							bb_p = &(*bb);
+
+							llvm_printf("Output: %d\n", ConstantInt::get(Type::getInt32Ty(bb->getContext()), 5));
 
 
-						errs() << "Return " << *inst_e << "\n";
+							errs() << "Return " << *inst_e << "\n";
 
-					} else {	
+						} else if(isa<BranchInst>(inst_e)) {	
 
-						errs() << "Branch: "<< *inst_e << "\n";
+							errs() << "Branch: "<< *inst_e << "\n";
 
-  						BranchInst * old_branch = dyn_cast<BranchInst>(&(*inst_e));
+	  						BranchInst * old_branch = dyn_cast<BranchInst>(&(*inst_e));
+
+							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, &(*--be));
+	  						IRBuilder<> killBuilder(F.getParent()->getContext());
+	  						killBuilder.SetInsertPoint(killBB);	
+							std::vector<Type *> arg_type;
+							std::vector<Value *> args;
+							arg_type.push_back(Type::getInt32Ty(m->getContext()));
+							Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
+							killBuilder.CreateCall(fun, args);
+							killBuilder.CreateUnreachable();
+							++be;
+							bb_p = killBB;
+							llvm_printf("[ERR]\n");	
 
 
-						BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, &(*--be));
-  						IRBuilder<> killBuilder(F.getParent()->getContext());
-  						killBuilder.SetInsertPoint(killBB);	
-						std::vector<Type *> arg_type;
-						std::vector<Value *> args;
-						arg_type.push_back(Type::getInt32Ty(m->getContext()));
-						Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
-						killBuilder.CreateCall(fun, args);
-						killBuilder.CreateUnreachable();
-						++be;
+							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, &(*--be));
+	  						IRBuilder<> bypassBuilder(F.getParent()->getContext());
+	  						bypassBuilder.SetInsertPoint(bypassBB);
+	  						Value * v = ConstantInt::get(Type::getInt32Ty(bb->getContext()), 0);
+	  						bypassBuilder.CreateAdd(v, v, "nop");
+							++be;
 
-  						// 	IRBuilder<> Builder(F.getParent()->getContext());
-  						// 	Builder.SetInsertPoint(old_branch);
-  						// 	Builder
+							ValueToValueMapTy vmap;
+							auto *new_inst = old_branch->clone();
+							bypassBuilder.Insert(new_inst);
+							vmap[old_branch] = new_inst;
+							RemapInstruction(new_inst, vmap, RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
 
-						 // BranchInst::Create(killBB, old_branch)
+	  						BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
+	  						bb->getTerminator()->eraseFromParent();
+							bb_p = bypassBB;
+							llvm_printf("[PASS] ~ OK.\n");	  						
+	  						
+						}
 
-  						// BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare);
-  						// replacement->insertAfter(old_branch);
-  						// old_branch->replaceAllUsesWith(replacement);
-  						// old_branch->eraseFromParent();
 					}
-
 				}
 
 				errs() << " ~ Modified BasicBlock\n";
 				for(BasicBlock &sbb : F) {
+						errs() << sbb.getName()<<"\n";
 					for(Instruction &i : sbb){
 						errs() << "[i]" << i <<"\n";
 					}

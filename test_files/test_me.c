@@ -54,6 +54,7 @@ int main() {
 	begin = clock();
 	printf("-- running [%d].\n",12);
 	wow();
+	foo(100, 1);
 	end = clock();
 	time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 	printf("time_spent: %lf\n", time_spent);

@@ -174,8 +174,9 @@ entry:
   store i64 %call, i64* %begin, align 8
   %call1 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str.1, i32 0, i32 0), i32 12)
   call void @wow()
-  %call2 = call i64 @clock() #4
-  store i64 %call2, i64* %end, align 8
+  %call2 = call float @foo(i32 100, i32 1)
+  %call3 = call i64 @clock() #4
+  store i64 %call3, i64* %end, align 8
   %0 = load i64, i64* %end, align 8
   %1 = load i64, i64* %begin, align 8
   %sub = sub nsw i64 %0, %1
@@ -183,7 +184,7 @@ entry:
   %div = fdiv double %conv, 1.000000e+06
   store double %div, double* %time_spent, align 8
   %2 = load double, double* %time_spent, align 8
-  %call3 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.2, i32 0, i32 0), double %2)
+  %call4 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.2, i32 0, i32 0), double %2)
   ret i32 1
 }
 
