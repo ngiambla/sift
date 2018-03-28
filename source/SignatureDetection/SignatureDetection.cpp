@@ -1,9 +1,11 @@
 #include <string>
 #include <memory>
+#include <string.h>
 #include <map>
 #include <ctime>
 #include <unistd.h>
 #include <cstdlib>
+#include <stdarg.h>
 
 #define GetCurrentDir getcwd
 
@@ -30,11 +32,15 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Attributes.h"
 
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
 #include "llvm/Pass.h"
+
+#define llvm_printf(...) kprintf(__VA_ARGS__, NULL)
 
 
 using namespace llvm;
@@ -42,15 +48,62 @@ namespace {
 	struct SignatureDetection : public FunctionPass {
 		std::vector<std::string> seen_functions; 						// So not to loop over.
 		static char ID; 												// ID of pass.
-
+		Module * mod_p; 
+		BasicBlock * bb_p; 
+		
 		SignatureDetection() : FunctionPass(ID) {}
+
+		void kprintf(const char *format, ...)
+		{
+		    Function *func_printf = mod_p->getFunction("printf");
+		    if (!func_printf) {
+		        PointerType *Pty = PointerType::get(IntegerType::get(mod_p->getContext(), 8), 0);
+		        FunctionType *FuncTy9 = FunctionType::get(IntegerType::get(mod_p->getContext(), 32), true);
+
+		        func_printf = Function::Create(FuncTy9, GlobalValue::ExternalLinkage, "printf", mod_p);
+		        func_printf->setCallingConv(CallingConv::C);
+
+		        AttributeList func_printf_PAL;
+		        func_printf->setAttributes(func_printf_PAL);
+		    }
+
+
+		    IRBuilder <> builder(mod_p->getContext());
+		    builder.SetInsertPoint(bb_p);
+
+		    Value *str = builder.CreateGlobalStringPtr(format);
+
+		    std::vector <Value *> int32_call_params;
+		    int32_call_params.push_back(str);
+
+
+		    va_list ap;
+		    va_start(ap, format);
+			errs() << "About to decode\n";
+
+		    do {
+		      	Value *op = va_arg(ap, Value *);
+		        if (op) {
+		        	errs() << "*** "<< op <<"\n";
+		        	errs() << op->getType() << "%%";
+		            int32_call_params.push_back(op);
+		        } else {
+		            break;
+		        }
+		    } while (1);
+
+		    va_end(ap);
+
+		    BasicBlock::iterator bip = bb_p->end();
+		    --bip;
+
+
+		    CallInst * int32_call = CallInst::Create(func_printf, int32_call_params, "call", bip->getPrevNode());
+		}
 
 		bool runOnFunction(Function &F) override {
 
-			std::string err_str; 										// For error notifications.
-			std::map<std::string, int> opCounter; 						// for testing purposes.
-			ValueToValueMapTy vmap;
-			bool emptyArgs; 											// if function arg list is empty.
+			bool check_performed = false; 								//
 
 			srand(time(NULL));
 
@@ -60,9 +113,19 @@ namespace {
 				errs().write_escaped(F.getName()) << '\n'; 				// ...
 
 				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
+
+					if(strncmp((bb->getName().str()).c_str(),"term.bypass", 11) == 0) {
+						bb++;
+					} else if(strncmp((bb->getName().str()).c_str(),"term.kill", 9) == 0) {
+						bb++;
+					}
+
+					std::vector<Instruction *> canary_deps;						//canary dependencies 			
+
 					errs() << " ~ --> Modifying Basic Block.\n";
-					int rand_num_1 = rand()%100;
-					int rand_num_2 = rand()%100;
+
+					int rand_num_1 = rand()%1000;
+					int rand_num_2 = rand()%1000;
 
 					Instruction *is = bb->getFirstNonPHIOrDbg();
 					Instruction *curOpS = dyn_cast<Instruction>(is);
@@ -70,20 +133,21 @@ namespace {
 					Value* V2 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
 					BinaryOperator::Create(Instruction::Add, V1, V2, "canary", curOpS);
 
-					Instruction *ie = bb->getTerminator();
+					Instruction *ie = (bb)->getTerminator();
 					Instruction *curOpE = dyn_cast<Instruction>(ie);
 					Value* V3 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
 					Value* V4 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
-					BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);					
+					BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);	
+					
+				
 
-
-
-					Instruction *ci;
+					Instruction *ci; 		// canary instruction
+					Instruction *tci;		// terminating canary instruction
 
 					for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
 						Instruction *i = &(*inst_b);
 
-						if( isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
+						if( isa<LoadInst>(i) || isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
 
 
 							if(strncmp((i->getName().str()).c_str(),"canary", 6) == 0){
@@ -91,37 +155,87 @@ namespace {
 								ci = dyn_cast<Instruction>(i);
 
 							} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
-								errs() << "-- check this\n";
+								tci = dyn_cast<Instruction>(i);
 							} else {
-								Module * m = F.getParent();
-
-								Function * printFun = m->getFunction("printf");
-								if(printFun == NULL) {
-									errs() << " ~ [!] printf missing.\n";
-								} else {
-									errs() << " ~ [#] printf avail.\n";
-									// Constant *Init = ConstantArray::get(" [!] Check this. \n");
-  							// 		// Create the global variable and record it in the module
-  							// 		// The GV will be renamed to a unique name if needed.
-  							// 		GlobalVariable *GV = new GlobalVariable(Init->getType(), true, GlobalValue::InternalLinkage, Init, "trstr");
-  							// 		m->getGlobalList().push_back(GV);
-  							// 		Constant *GEP=ConstantExpr::getGetElementPtr(GV, std::vector<Constant*>(2,Constant::getNullValue(Type::Float)));
- 								// 	std::vector<Value*> printArgs;
-  							// 		printArgs.push_back(GEP);
-  							// 		CallInst::Create(printFun, printArgs, "trace", i->getNextNode());
-
-								}
-								errs() << *i << "\n";
 								Instruction *curOp = dyn_cast<Instruction>(i);
 								if(!curOp) {
 									errs() << "Skipping instruction...\n";
 								}
-								BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());
+								if(i->getType()->isFloatTy() || i->getType()->isDoubleTy()) {
+									CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "conv", curOp->getNextNode());
+									canary_deps.push_back(float_conv);								
+									BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
+								} else {
+									canary_deps.push_back(i);								
+									BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());									
+								}
 							}
 						}
 					}
+
+					for(Instruction * i : canary_deps) {
+						BinaryOperator::Create(Instruction::Xor, i, ci, "canary", tci);
+						ci = tci->getPrevNode();
+					}
+					CmpInst * compare = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, ci, tci, "res", tci->getNextNode());
+					Module * m = F.getParent();
+
+					errs() << " ~ About to Generate Exit.\n";
+					BasicBlock::iterator inst_e = bb->end();
+					--inst_e;
+					
+					
+
+					if(isa<ReturnInst>(inst_e)) {
+
+						// std::vector<Type *> arg_type;
+						// std::vector<Value *> args;
+						// arg_type.push_back(Type::getInt32Ty(m->getContext()));
+						// Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
+						// IRBuilder<> Builder(tci->getNextNode());
+
+						// Builder.CreateCall(fun, args);
+						mod_p = m;
+						bb_p = &(*bb);
+
+						llvm_printf("Output: %d\n", ConstantInt::get(Type::getInt32Ty(bb->getContext()), 5));
+
+
+						errs() << "Return " << *inst_e << "\n";
+
+					} else {	
+
+						errs() << "Branch: "<< *inst_e << "\n";
+
+  						BranchInst * old_branch = dyn_cast<BranchInst>(&(*inst_e));
+
+
+						BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, &(*--be));
+  						IRBuilder<> killBuilder(F.getParent()->getContext());
+  						killBuilder.SetInsertPoint(killBB);	
+						std::vector<Type *> arg_type;
+						std::vector<Value *> args;
+						arg_type.push_back(Type::getInt32Ty(m->getContext()));
+						Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
+						killBuilder.CreateCall(fun, args);
+						killBuilder.CreateUnreachable();
+						++be;
+
+  						// 	IRBuilder<> Builder(F.getParent()->getContext());
+  						// 	Builder.SetInsertPoint(old_branch);
+  						// 	Builder
+
+						 // BranchInst::Create(killBB, old_branch)
+
+  						// BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare);
+  						// replacement->insertAfter(old_branch);
+  						// old_branch->replaceAllUsesWith(replacement);
+  						// old_branch->eraseFromParent();
+					}
+
 				}
 
+				errs() << " ~ Modified BasicBlock\n";
 				for(BasicBlock &sbb : F) {
 					for(Instruction &i : sbb){
 						errs() << "[i]" << i <<"\n";
