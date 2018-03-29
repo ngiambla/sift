@@ -7,22 +7,6 @@
 #include <cstdlib>
 #include <stdarg.h>
 
-#define GetCurrentDir getcwd
-
-
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
-#include "llvm/ExecutionEngine/Interpreter.h"
-
-#include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/MemoryBuffer.h"
-
-#include "llvm/Bitcode/BitcodeReader.h"
-#include "llvm/Bitcode/BitcodeWriter.h"
-
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
@@ -36,7 +20,6 @@
 
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-
 
 #include "llvm/Pass.h"
 
@@ -97,8 +80,6 @@ namespace {
 		    va_end(ap);
 
 		    BasicBlock::iterator bip = bb_p->begin();
-		    // --bip;
-		    // errs() << *bip;
 
 		    CallInst * int32_call = CallInst::Create(func_printf, int32_call_params, "call", &(*bip));
 		}
@@ -182,12 +163,10 @@ namespace {
 						BasicBlock::iterator inst_e = bb->end();
 						--inst_e;
 						
-						
-
-						if(isa<ReturnInst>(inst_e)) {
+						if(isa<ReturnInst>(inst_e) || isa<BranchInst>(inst_e)) {
 
 							Instruction * old_inst = dyn_cast<Instruction>(&(*inst_e));
-							errs() << "Return " << *inst_e << "\n";
+							errs() << "Termintor: " << *inst_e << "\n";
 
 							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, 0);
 
@@ -200,7 +179,7 @@ namespace {
 							killBuilder.CreateCall(fun, args);
 							killBuilder.CreateUnreachable();
 							bb_p = killBB;
-							llvm_printf("[ERR] - RET\n");	
+							llvm_printf("[err] - canary does not match.\n");	
 
 
 							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, 0);
@@ -218,46 +197,8 @@ namespace {
 	  						BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
 	  						bb->getTerminator()->eraseFromParent();
 							bb_p = bypassBB;
-							llvm_printf("[PASS] ~ RET? OK.\n");	  
-
-						} else if(isa<BranchInst>(inst_e)) {	
-
-							errs() << "Branch: "<< *inst_e << "\n";
-
-	  						BranchInst * old_branch = dyn_cast<BranchInst>(&(*inst_e));
-
-							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, 0);
-	  						IRBuilder<> killBuilder(F.getParent()->getContext());
-	  						killBuilder.SetInsertPoint(killBB);	
-							std::vector<Type *> arg_type;
-							std::vector<Value *> args;
-							arg_type.push_back(Type::getInt32Ty(m->getContext()));
-							Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
-							killBuilder.CreateCall(fun, args);
-							killBuilder.CreateUnreachable();
-							bb_p = killBB;
-							llvm_printf("[ERR] - BR\n");	
-
-
-							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, 0);
-	  						IRBuilder<> bypassBuilder(F.getParent()->getContext());
-	  						bypassBuilder.SetInsertPoint(bypassBB);
-	  						Value * v = ConstantInt::get(Type::getInt32Ty(bb->getContext()), 0);
-	  						bypassBuilder.CreateAdd(v, v, "nop");
-
-							ValueToValueMapTy vmap;
-							auto *new_inst = old_branch->clone();
-							bypassBuilder.Insert(new_inst);
-							vmap[old_branch] = new_inst;
-							RemapInstruction(new_inst, vmap, RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-
-	  						BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
-	  						bb->getTerminator()->eraseFromParent();
-							bb_p = bypassBB;
-							llvm_printf("[PASS] ~ BR? OK.\n");	  						
-	  						
+							llvm_printf("[pass] status ~ OK.\n");	  
 						}
-
 					}
 				}
 
