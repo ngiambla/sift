@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<stdlib.h>
 #include<time.h>
 
 void wow(void) {
@@ -9,9 +10,20 @@ void wow(void) {
 	}
 }
 
+
+void holy_smokes(void) {
+	int i = 100;
+	for(; i> 0; i--) {
+		srand(time(NULL));
+		if(rand()%100==23) {
+			exit(-1);
+		}
+	}
+}
+
 float foo(int a1, int a2) {
  if(a1 <= 0) {
- 	return a2*3.124;
+	return a2*3.124;
  } else {
  	return foo(a1-a2, a2);
  }
@@ -21,7 +33,11 @@ float foo(int a1, int a2) {
 float bar(int a1) {
 
 	return 123.00*a1;
-} 
+}
+
+double doubleDown() {
+	return 12121.001;
+}
 
 int square_n(int n) {
 	return n*n;
@@ -40,7 +56,9 @@ int main() {
 	clock_t begin;
 	clock_t end;
 	begin = clock();
+	printf("-- running [%d].\n",12);
 	wow();
+	foo(100, 1);
 	end = clock();
 	time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 	printf("time_spent: %lf\n", time_spent);
