@@ -1,3 +1,4 @@
+#include <iostream>
 #include <string>
 #include <memory>
 #include <string.h>
@@ -18,38 +19,32 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Attributes.h"
 
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
+#include "utils.h"
+
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-
+#include "llvm/Transforms/Utils/ValueMapper.h"
 #include "llvm/Pass.h"
 
 #define llvm_printf(...) kprintf(__VA_ARGS__, NULL)
 
 
 using namespace llvm;
-namespace {
+namespace legup {
 	struct SignatureDetection : public FunctionPass {
-		std::vector<std::string> seen_functions; 						// So not to loop over.
 		static char ID; 												// ID of pass.
-		Module * mod_p; 
-		BasicBlock * bb_p; 
+		Module * mod_p;
+		BasicBlock * bb_p;
 		BasicBlock* killBB;
 
-		
 		SignatureDetection() : FunctionPass(ID) {}
 
-		void kprintf(const char *format, ...)
-		{
+		void kprintf(const char *format, ...) {
 		    Function *func_printf = mod_p->getFunction("printf");
 		    if (!func_printf) {
-		        PointerType *Pty = PointerType::get(IntegerType::get(mod_p->getContext(), 8), 0);
-		        FunctionType *FuncTy9 = FunctionType::get(IntegerType::get(mod_p->getContext(), 32), true);
-
-		        func_printf = Function::Create(FuncTy9, GlobalValue::ExternalLinkage, "printf", mod_p);
-		        func_printf->setCallingConv(CallingConv::C);
-
-		        AttributeList func_printf_PAL;
-		        func_printf->setAttributes(func_printf_PAL);
+			return;
 		    }
 
 
@@ -64,13 +59,10 @@ namespace {
 
 		    va_list ap;
 		    va_start(ap, format);
-			errs() << "About to decode\n";
 
 		    do {
 		      	Value *op = va_arg(ap, Value *);
 		        if (op) {
-		        	errs() << "*** "<< op <<"\n";
-		        	errs() << op->getType() << "%%";
 		            int32_call_params.push_back(op);
 		        } else {
 		            break;
@@ -80,27 +72,26 @@ namespace {
 		    va_end(ap);
 
 		    BasicBlock::iterator bip = bb_p->begin();
-
-		    CallInst * int32_call = CallInst::Create(func_printf, int32_call_params, "call", &(*bip));
+		    CallInst::Create(func_printf, int32_call_params, "call", &(*bip));
 		}
 
 		bool runOnFunction(Function &F) override {
+    			int add_tolerance = LEGUP_CONFIG->getParameterInt("SIG_DETECT");
+    			if (!add_tolerance) {
+        			return false;
+    			} else {
+				cout << "~~~~ Detecting Signature: " << F.getName().str().c_str()<< "\n";
+    			}
 
 			srand(time(NULL));
-			bool kill_generated=false;
 
-			if(F.getName() != "main") { 								// Ignoring main function (as we are going to separately parse each function.)
-
-				errs() << " ~  Identifying Signature for:   "; 			// first identify function 
-				errs().write_escaped(F.getName()) << '\n'; 				// ...
+			if(add_tolerance) {
 
 				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
 
 					if(strncmp((bb->getName().str()).c_str(),"term.bypass", 11) != 0 && strncmp((bb->getName().str()).c_str(),"term.kill", 9) != 0) {
-				
-						std::vector<Instruction *> canary_deps;						//canary dependencies 			
 
-						errs() << " ~ --> Modifying Basic Block.\n";
+						std::vector<Instruction *> canary_deps;						//canary dependencies
 
 						int rand_num_1 = rand()%1000;
 						int rand_num_2 = rand()%1000;
@@ -115,9 +106,7 @@ namespace {
 						Instruction *curOpE = dyn_cast<Instruction>(ie);
 						Value* V3 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
 						Value* V4 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
-						BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);	
-						
-					
+						BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);
 
 						Instruction *ci; 		// canary instruction
 						Instruction *tci;		// terminating canary instruction
@@ -125,11 +114,10 @@ namespace {
 						for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
 							Instruction *i = &(*inst_b);
 
-							if( isa<LoadInst>(i) || isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
+							if( isa<LoadInst>(i) || (isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 )){
 
 
 								if(strncmp((i->getName().str()).c_str(),"canary", 6) == 0){
-									errs() << i->getName() << "\n";
 									ci = dyn_cast<Instruction>(i);
 
 								} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
@@ -137,15 +125,15 @@ namespace {
 								} else {
 									Instruction *curOp = dyn_cast<Instruction>(i);
 									if(!curOp) {
-										errs() << "Skipping instruction...\n";
+										//cout << "Skipping instruction...\n";
 									}
 									if(i->getType()->isFloatTy() || i->getType()->isDoubleTy()) {
 										CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "cnry.conv", curOp->getNextNode());
-										canary_deps.push_back(float_conv);								
+										canary_deps.push_back(float_conv);
 										BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
-									} else {
-										canary_deps.push_back(i);								
-										BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());									
+									} else if(i->getType()->isIntegerTy(32)) {
+										canary_deps.push_back(i);
+										BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());
 									}
 								}
 							}
@@ -159,28 +147,21 @@ namespace {
 						Module * m = F.getParent();
 						mod_p = m;
 
-						errs() << " ~ About to Generate Exit.\n";
+						//cout << " ~ About to Generate Exit.\n";
 						BasicBlock::iterator inst_e = bb->end();
 						--inst_e;
-						
-						if(isa<ReturnInst>(inst_e) || isa<BranchInst>(inst_e)) {
+
+						if((isa<ReturnInst>(inst_e) || isa<BranchInst>(inst_e)) && !isa<PHINode>(inst_e)) {
 
 							Instruction * old_inst = dyn_cast<Instruction>(&(*inst_e));
-							errs() << "Termintor: " << *inst_e << "\n";
 
 							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, 0);
 
 	  						IRBuilder<> killBuilder(F.getParent()->getContext());
-	  						killBuilder.SetInsertPoint(killBB);	
-							std::vector<Type *> arg_type;
-							std::vector<Value *> args;
-							arg_type.push_back(Type::getInt32Ty(m->getContext()));
-							Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
-							//killBuilder.CreateCall(fun, args);
+	  						killBuilder.SetInsertPoint(killBB);
 							killBuilder.CreateBr(killBB);
 							bb_p = killBB;
-							llvm_printf("[err] - canary does not match.\n");	
-
+							llvm_printf("[err] - canary does not match.\n");
 
 							BasicBlock* bypassBB = BasicBlock::Create(F.getParent()->getContext(), "term.bypass", &F, 0);
 	  						IRBuilder<> bypassBuilder(F.getParent()->getContext());
@@ -192,25 +173,15 @@ namespace {
 							auto *new_inst = old_inst->clone();
 							bypassBuilder.Insert(new_inst);
 							vmap[old_inst] = new_inst;
-							RemapInstruction(new_inst, vmap, RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+							RemapInstruction(new_inst, vmap, RF_NoModuleLevelChanges|RF_IgnoreMissingEntries);
 
-	  						BranchInst *replacement = BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
+	  						BranchInst::Create(bypassBB, killBB, compare, bb->getTerminator());
 	  						bb->getTerminator()->eraseFromParent();
 							bb_p = bypassBB;
-							llvm_printf("[pass] status ~ OK.\n");	  
 						}
 					}
 				}
-
-				errs() << " ~ Modified BasicBlock\n";
-				for(BasicBlock &sbb : F) {
-						errs() << sbb.getName()<<"\n";
-					for(Instruction &i : sbb){
-						errs() << "[i]" << i <<"\n";
-					}
-					errs() << "\n";
-				}
-
+				cout << " +--[OK]\n";
 				return true;
 			} else {
 				return false; 					// do not modify main
@@ -219,6 +190,6 @@ namespace {
 	};
 }
 
+using namespace legup;
 char SignatureDetection::ID = 0;
-
 static RegisterPass<SignatureDetection> X("signatureDetection", "Acquiring Signuature Detection", false, false);
