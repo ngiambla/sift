@@ -131,7 +131,7 @@ namespace legup {
 										CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "cnry.conv", curOp->getNextNode());
 										canary_deps.push_back(float_conv);
 										BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
-									} else if(i->getType()->isIntegerTy()) {
+									} else if(i->getType()->isIntegerTy(32)) {
 										canary_deps.push_back(i);
 										BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());
 									}
@@ -151,7 +151,7 @@ namespace legup {
 						BasicBlock::iterator inst_e = bb->end();
 						--inst_e;
 
-						if(isa<ReturnInst>(inst_e) || isa<BranchInst>(inst_e)) {
+						if((isa<ReturnInst>(inst_e) || isa<BranchInst>(inst_e)) && !isa<PHINode>(inst_e)) {
 
 							Instruction * old_inst = dyn_cast<Instruction>(&(*inst_e));
 
