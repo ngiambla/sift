@@ -1,2 +1,0 @@
-gcc -D_GNUCC -E -DCIL=1 /home/giambla2/Documents/research/legup/sift/chstone/jpeg/main.c -o /home/giambla2/Documents/research/legup/sift/chstone/jpeg/tmp/cil-GSERksWy.i
-cilcc /home/giambla2/Documents/research/legup/sift/chstone/jpeg/tmp/cil-GSERksWy.i

@@ -14,14 +14,18 @@ for d in */; do
     make clean
 	clpamake.pl -sources=. -root=.
 	cd logic
-	# for a in ~/clpa/analysis/*/; do
-
-	#     clpa --no-fixpoint --timeout 60 ~/clpa/analysis/null/null.clp
-	clpa --no-fixpoint --timeout 60 ~/clpa/analysis/aliasing/aliasing.clp
-
+	clpa --no-fixpoint --timeout 60 ~/clpa/analysis/null/null.clp
+	clpa --no-fixpoint --timeout 60 ~/clpa/analysis/aliasing/aliasingcheck.clp
 	cd ../
     rm *.txt
     rm -r tmp
     rm -r logic
+
+    for i in `find -type f`; do 
+        if [[ "$i" != *".h" && "$i" != *".c" && "$i" != "./Makefile" ]]; then
+            [ -x $i ] && echo "$i is executable";
+            valgrind -v $i
+        fi
+    done
 	cd ../
 done

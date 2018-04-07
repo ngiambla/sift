@@ -1,5 +1,0 @@
-MAKE:    0:00
-EXTRACT: 0:03
-IPANL:   0:00
--------
-OVERALL: 0:03
