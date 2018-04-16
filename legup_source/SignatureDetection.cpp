@@ -41,6 +41,7 @@ namespace legup {
 
 		SignatureDetection() : FunctionPass(ID) {}
 
+		//Define an instruction for printf (if printf exists)
 		void kprintf(const char *format, ...) {
 		    Function *func_printf = mod_p->getFunction("printf");
 		    if (!func_printf) {
@@ -91,12 +92,12 @@ namespace legup {
 
 					if(strncmp((bb->getName().str()).c_str(),"term.bypass", 11) != 0 && strncmp((bb->getName().str()).c_str(),"term.kill", 9) != 0) {
 
-						std::vector<Instruction *> canary_deps;						//canary dependencies
+						std::vector<Instruction *> canary_deps;										// canary dependencies
 
-						int rand_num_1 = rand()%1000;
-						int rand_num_2 = rand()%1000;
+						int rand_num_1 = rand()%1000;												// Make Canary (add two rand values)
+						int rand_num_2 = rand()%1000;												// ...
 
-						Instruction *is = bb->getFirstNonPHIOrDbg();
+						Instruction *is = bb->getFirstNonPHIOrDbg();								
 						Instruction *curOpS = dyn_cast<Instruction>(is);
 						Value* V1 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_1);
 						Value* V2 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
