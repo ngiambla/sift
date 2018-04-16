@@ -3,6 +3,7 @@
 
 
 chstoneDir="chstone"
+clpaDir="$HOME/clpa"
 
 echo "~ Initializing Bug Detection."
 
