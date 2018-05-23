@@ -28,7 +28,7 @@ $ opt -debug -load ../source/SignatureDetection/libLLVMSignatureDetection.so -si
 
 
 ## Author
-Nicholas Giamblanco (M.A.Sc.), Ishita Ray (M.A.Sc.)
+Nicholas Giamblanco (M.A.Sc.)
 
 
 
