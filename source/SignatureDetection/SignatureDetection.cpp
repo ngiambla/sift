@@ -64,13 +64,10 @@ namespace {
 
 		    va_list ap;
 		    va_start(ap, format);
-			errs() << "About to decode\n";
 
 		    do {
 		      	Value *op = va_arg(ap, Value *);
 		        if (op) {
-		        	errs() << "*** "<< op <<"\n";
-		        	errs() << op->getType() << "%%";
 		            int32_call_params.push_back(op);
 		        } else {
 		            break;
@@ -95,12 +92,20 @@ namespace {
 				errs().write_escaped(F.getName()) << '\n'; 				// ...
 
 				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
+					for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
+						Instruction *i = &(*inst_b);
+						if(isa<PHINode>(i)) {
+							errs() << "   +---Signature not computed for: ["<<F.getName() <<"]\n";
+							return false;
+						}
+					}
+				}
+
+				for(Function::iterator bb  = F.begin(), be = F.end(); bb != be; ++bb) {
 
 					if(strncmp((bb->getName().str()).c_str(),"term.bypass", 11) != 0 && strncmp((bb->getName().str()).c_str(),"term.kill", 9) != 0) {
 				
 						std::vector<Instruction *> canary_deps;						//canary dependencies 			
-
-						errs() << " ~ --> Modifying Basic Block.\n";
 
 						int rand_num_1 = rand()%1000;
 						int rand_num_2 = rand()%1000;
@@ -117,7 +122,6 @@ namespace {
 						Value* V4 = ConstantInt::get(Type::getInt32Ty(bb->getContext()), rand_num_2);
 						BinaryOperator::Create(Instruction::Add, V3, V4, "check_canary", curOpE);	
 						
-					
 
 						Instruction *ci; 		// canary instruction
 						Instruction *tci;		// terminating canary instruction
@@ -125,27 +129,28 @@ namespace {
 						for(BasicBlock::iterator inst_b = bb->begin(), inst_e = bb->end(); inst_b != inst_e; ++inst_b ) {
 							Instruction *i = &(*inst_b);
 
-							if( isa<LoadInst>(i) || isa<llvm::BinaryOperator>(i) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
+							
+
+							if( (isa<LoadInst>(i) || isa<llvm::BinaryOperator>(i)) && !(isa<CmpInst>(i)) && !(isa<BranchInst>(i)) && !(isa<ReturnInst>(i)) && !(isa<CallInst>(i)) && i != 0 ){
 
 
 								if(strncmp((i->getName().str()).c_str(),"canary", 6) == 0){
-									errs() << i->getName() << "\n";
 									ci = dyn_cast<Instruction>(i);
-
 								} else if(strncmp((i->getName().str()).c_str(),"check", 5) == 0) {
 									tci = dyn_cast<Instruction>(i);
 								} else {
 									Instruction *curOp = dyn_cast<Instruction>(i);
 									if(!curOp) {
-										errs() << "Skipping instruction...\n";
+
 									}
 									if(i->getType()->isFloatTy() || i->getType()->isDoubleTy()) {
 										CastInst* float_conv = new FPToSIInst(i, Type::getInt32Ty(F.getParent()->getContext()), "cnry.conv", curOp->getNextNode());
 										canary_deps.push_back(float_conv);								
 										BinaryOperator::Create(Instruction::Xor, float_conv, ci, "canary", float_conv->getNextNode());
-									} else {
-										canary_deps.push_back(i);								
-										BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());									
+									} else if(i->getType()->isIntegerTy(32)) {
+											canary_deps.push_back(i);
+											BinaryOperator::Create(Instruction::Xor, i, ci, "canary", curOp->getNextNode());
+									
 									}
 								}
 							}
@@ -159,14 +164,12 @@ namespace {
 						Module * m = F.getParent();
 						mod_p = m;
 
-						errs() << " ~ About to Generate Exit.\n";
 						BasicBlock::iterator inst_e = bb->end();
 						--inst_e;
 						
 						if(isa<ReturnInst>(inst_e) || isa<BranchInst>(inst_e)) {
 
 							Instruction * old_inst = dyn_cast<Instruction>(&(*inst_e));
-							errs() << "Termintor: " << *inst_e << "\n";
 
 							BasicBlock* killBB = BasicBlock::Create(F.getParent()->getContext(), "term.kill", &F, 0);
 
@@ -176,7 +179,6 @@ namespace {
 							std::vector<Value *> args;
 							arg_type.push_back(Type::getInt32Ty(m->getContext()));
 							Function *fun = Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap);
-							//killBuilder.CreateCall(fun, args);
 							killBuilder.CreateBr(killBB);
 							bb_p = killBB;
 							llvm_printf("[err] - canary does not match.\n");	
@@ -200,15 +202,6 @@ namespace {
 							llvm_printf("[pass] status ~ OK.\n");	  
 						}
 					}
-				}
-
-				errs() << " ~ Modified BasicBlock\n";
-				for(BasicBlock &sbb : F) {
-						errs() << sbb.getName()<<"\n";
-					for(Instruction &i : sbb){
-						errs() << "[i]" << i <<"\n";
-					}
-					errs() << "\n";
 				}
 
 				return true;
