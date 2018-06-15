@@ -1,5 +1,14 @@
 #!/bin/bash
 
 echo "Cleaning Up.";
+cd ../chstone
 
-rm *.bc *.ll;
+for d in */; do
+
+	cd $d
+	make clean
+
+	rm *.bc *.ll;
+
+	cd ../
+done
