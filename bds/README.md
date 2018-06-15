@@ -1,4 +1,4 @@
-#Bug Detection Script
+# Bug Detection Script #
 
 Included in this directory is the bug detection script
 
